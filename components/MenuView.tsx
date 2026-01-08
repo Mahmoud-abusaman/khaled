@@ -1,0 +1,123 @@
+
+import React, { useState } from 'react';
+import { MenuItem, Category } from '../types';
+
+interface MenuViewProps {
+  menu: MenuItem[];
+  onAdd: (item: MenuItem) => void;
+  onDelete: (id: string) => void;
+}
+
+export const MenuView: React.FC<MenuViewProps> = ({ menu, onAdd, onDelete }) => {
+  const [newItem, setNewItem] = useState({ name: '', price: 0, category: 'المشروبات الساخنة' as Category });
+
+  const categories: Category[] = ['المشروبات الساخنة', 'المشروبات الباردة', 'سندوتشات الفينو', 'أخرى'];
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newItem.name || newItem.price <= 0) return;
+    
+    onAdd({
+      id: Math.random().toString(36).substr(2, 9),
+      ...newItem
+    });
+    setNewItem({ name: '', price: 0, category: 'المشروبات الساخنة' });
+  };
+
+  return (
+    <div className="p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="lg:col-span-4">
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 sticky top-6">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+            إضافة صنف للمنيو
+          </h2>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-bold text-gray-400 mb-2">الاسم</label>
+              <input
+                type="text"
+                required
+                value={newItem.name}
+                onChange={e => setNewItem({ ...newItem, name: e.target.value })}
+                className="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 focus:bg-white focus:border-[#6f4e37] transition-all"
+                placeholder="اسم المشروب أو السندوتش"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-400 mb-2">السعر الافتراضي</label>
+              <input
+                type="number"
+                required
+                min="0"
+                value={newItem.price || ''}
+                onChange={e => setNewItem({ ...newItem, price: Number(e.target.value) })}
+                className="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 font-black text-[#6f4e37]"
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-gray-400 mb-2">التصنيف</label>
+              <select
+                value={newItem.category}
+                onChange={e => setNewItem({ ...newItem, category: e.target.value as Category })}
+                className="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 font-bold"
+              >
+                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-[#6f4e37] hover:bg-[#2c1810] text-white py-4 rounded-2xl font-black text-lg shadow-xl transition-all"
+            >
+              إضافة الصنف الآن
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div className="lg:col-span-8 space-y-6">
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+            <h2 className="text-xl font-black text-gray-800">قائمة أصناف الكافيه</h2>
+            <span className="text-xs text-gray-400 font-bold uppercase">{menu.length} صنف متاح</span>
+          </div>
+          
+          <div className="divide-y divide-gray-100">
+            {categories.map(cat => {
+              const items = menu.filter(m => m.category === cat);
+              if (items.length === 0) return null;
+              
+              return (
+                <div key={cat} className="p-6">
+                  <h3 className="text-[#6f4e37] font-black mb-4 flex items-center gap-2">
+                    <span className="w-1 h-5 bg-[#6f4e37] rounded-full"></span>
+                    {cat}
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {items.map(item => (
+                      <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 group">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-gray-800">{item.name}</span>
+                          <span className="text-[#6f4e37] font-black">{item.price} ₪</span>
+                        </div>
+                        <button
+                          onClick={() => onDelete(item.id)}
+                          className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white p-3 rounded-xl transition-all duration-200"
+                          title="حذف من المنيو"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
