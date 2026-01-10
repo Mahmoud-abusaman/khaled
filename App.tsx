@@ -6,7 +6,7 @@ import { ReportsView } from './components/ReportsView';
 import { MenuView } from './components/MenuView';
 import { MenuItem, Invoice } from './types';
 import { INITIAL_MENU } from './constants';
-import { fetchMenu, saveMenu, fetchInvoices, saveInvoices } from './utils/api';
+import { fetchMenu, createMenuItem, deleteMenuItem, fetchInvoices, createInvoice, deleteInvoice } from './utils/api';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -46,39 +46,48 @@ const App: React.FC = () => {
     loadData();
   }, []);
 
-  // Save menu to API when it changes
-  useEffect(() => {
-    if (!isLoading && menu.length > 0) {
-      saveMenu(menu).catch(err => {
-        console.error('Failed to save menu:', err);
-      });
+  const handleAddInvoice = async (inv: Invoice) => {
+    try {
+      // Remove id from object before sending (let server generate it)
+      const { id, ...invoiceData } = inv;
+      const newInvoice = await createInvoice(invoiceData);
+      setInvoices([newInvoice, ...invoices]);
+    } catch (error) {
+      console.error('Failed to create invoice:', error);
+      alert('فشل حفظ الفاتورة');
     }
-  }, [menu, isLoading]);
+  };
 
-  // Save invoices to API when they change
-  useEffect(() => {
-    if (!isLoading) {
-      saveInvoices(invoices).catch(err => {
-        console.error('Failed to save invoices:', err);
-      });
+  const handleDeleteInvoice = async (id: string) => {
+    try {
+      await deleteInvoice(id);
+      setInvoices(prev => prev.filter(i => i.id !== id));
+    } catch (error) {
+      console.error('Failed to delete invoice:', error);
+      alert('فشل حذف الفاتورة');
     }
-  }, [invoices, isLoading]);
-
-  const handleAddInvoice = (inv: Invoice) => {
-    setInvoices([inv, ...invoices]);
   };
 
-  const handleDeleteInvoice = (id: string) => {
-    // تم إزالة confirm لضمان عمل الحذف فوراً في كل البيئات
-    setInvoices(prev => prev.filter(i => i.id !== id));
+  const handleAddMenuItem = async (item: MenuItem) => {
+    try {
+      // Remove id (or let it be ignored by server if we send it, but best to omit)
+      const { id, ...itemData } = item;
+      const newItem = await createMenuItem(itemData);
+      setMenu([...menu, newItem]);
+    } catch (error) {
+      console.error('Failed to create menu item:', error);
+      alert('فشل إضافة الصنف');
+    }
   };
 
-  const handleAddMenuItem = (item: MenuItem) => {
-    setMenu([...menu, item]);
-  };
-
-  const handleDeleteMenuItem = (id: string) => {
-    setMenu(prev => prev.filter(m => m.id !== id));
+  const handleDeleteMenuItem = async (id: string) => {
+    try {
+      await deleteMenuItem(id);
+      setMenu(prev => prev.filter(m => m.id !== id));
+    } catch (error) {
+      console.error('Failed to delete menu item:', error);
+      alert('فشل حذف الصنف');
+    }
   };
 
   // Show loading state

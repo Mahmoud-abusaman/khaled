@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 
 interface POSViewProps {
   menu: MenuItem[];
-  onSaveInvoice: (invoice: Invoice) => void;
+  onSaveInvoice: (invoice: Invoice) => Promise<void> | void;
   invoices: Invoice[];
   onDeleteInvoice: (id: string) => void;
 }
@@ -54,7 +54,7 @@ export const POSView: React.FC<POSViewProps> = ({ menu, onSaveInvoice, invoices,
 
   const handleSave = () => {
     if (cart.length === 0) return;
-    
+
     const newInvoice: Invoice = {
       id: Math.random().toString(36).substr(2, 9),
       customerName: customerName || undefined,
@@ -78,11 +78,10 @@ export const POSView: React.FC<POSViewProps> = ({ menu, onSaveInvoice, invoices,
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-6 py-3 rounded-2xl whitespace-nowrap transition-all font-semibold ${
-                selectedCategory === cat 
-                ? 'bg-[#6f4e37] text-white shadow-md' 
+              className={`px-6 py-3 rounded-2xl whitespace-nowrap transition-all font-semibold ${selectedCategory === cat
+                ? 'bg-[#6f4e37] text-white shadow-md'
                 : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-              }`}
+                }`}
             >
               {cat}
             </button>
@@ -136,8 +135,8 @@ export const POSView: React.FC<POSViewProps> = ({ menu, onSaveInvoice, invoices,
                       </td>
                       <td className="px-6 py-4 font-black text-[#6f4e37]">{inv.total} ₪</td>
                       <td className="px-6 py-4 text-center">
-                        <button 
-                          onClick={() => onDeleteInvoice(inv.id)} 
+                        <button
+                          onClick={() => onDeleteInvoice(inv.id)}
                           className="text-red-500 bg-red-50 hover:bg-red-100 p-2 rounded-xl transition-all"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -158,7 +157,7 @@ export const POSView: React.FC<POSViewProps> = ({ menu, onSaveInvoice, invoices,
       <div className="lg:col-span-4 bg-white rounded-3xl shadow-xl border border-gray-100 flex flex-col overflow-hidden sticky top-6 max-h-[calc(100vh-100px)]">
         <div className="p-6 border-b border-gray-100">
           <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">الفاتورة الجديدة</h2>
-          
+
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-gray-400 mb-2 uppercase">اسم العميل</label>
@@ -170,7 +169,7 @@ export const POSView: React.FC<POSViewProps> = ({ menu, onSaveInvoice, invoices,
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:border-[#6f4e37]"
               />
             </div>
-            
+
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-2 uppercase">تاريخ الفاتورة</label>
@@ -181,7 +180,7 @@ export const POSView: React.FC<POSViewProps> = ({ menu, onSaveInvoice, invoices,
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none text-sm font-bold"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-2 uppercase text-center">طريقة الدفع</label>
                 <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-2xl">
@@ -219,7 +218,7 @@ export const POSView: React.FC<POSViewProps> = ({ menu, onSaveInvoice, invoices,
                     </svg>
                   </button>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-100">-</button>
@@ -249,11 +248,10 @@ export const POSView: React.FC<POSViewProps> = ({ menu, onSaveInvoice, invoices,
           <button
             onClick={handleSave}
             disabled={cart.length === 0}
-            className={`w-full py-5 rounded-3xl font-black text-xl shadow-2xl transition-all flex items-center justify-center gap-3 ${
-              cart.length > 0 
-              ? 'bg-[#6f4e37] hover:bg-[#8b624a] text-white active:scale-95' 
+            className={`w-full py-5 rounded-3xl font-black text-xl shadow-2xl transition-all flex items-center justify-center gap-3 ${cart.length > 0
+              ? 'bg-[#6f4e37] hover:bg-[#8b624a] text-white active:scale-95'
               : 'bg-white/10 text-white/30 cursor-not-allowed border border-white/5'
-            }`}
+              }`}
           >
             حفظ الفاتورة
           </button>

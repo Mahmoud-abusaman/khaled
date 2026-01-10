@@ -9,6 +9,7 @@ export interface MenuItem {
 }
 
 export interface CartItem extends MenuItem {
+  menuItem?: string; // Reference to MenuItem ID for the backend
   quantity: number;
   customPrice: number;
 }

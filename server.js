@@ -4,7 +4,6 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import fs from 'fs/promises';
 
 dotenv.config();
 
@@ -14,7 +13,6 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 const DIST_DIR = path.join(__dirname, 'dist');
-const DATA_DIR = path.join(__dirname, 'data');
 
 // Middleware
 app.use(cors());
@@ -28,75 +26,58 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // Schemas
 const menuSchema = new mongoose.Schema({
-    id: { type: String, required: true, unique: true },
     name: { type: String, required: true },
     price: { type: Number, required: true },
     category: { type: String, required: true }
+}, {
+    timestamps: true,
+    toJSON: {
+        virtuals: true,
+        transform: function (doc, ret) {
+            ret.id = ret._id;
+            delete ret._id;
+            delete ret.__v;
+        }
+    }
 });
 
 const MenuItem = mongoose.model('MenuItem', menuSchema);
 
 const invoiceSchema = new mongoose.Schema({
-    id: { type: String, required: true, unique: true },
     customerName: String,
     date: { type: String, required: true },
     items: [{
-        id: String,
-        name: String,
-        price: Number,
+        menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' },
+        name: { type: String, required: true }, // Snapshot of name at time of purchase
+        price: { type: Number, required: true }, // Snapshot of price at time of purchase
         category: String,
-        quantity: Number,
+        quantity: { type: Number, required: true },
         customPrice: Number
     }],
     paymentMethod: { type: String, required: true },
     total: { type: Number, required: true }
+}, {
+    timestamps: true,
+    toJSON: {
+        virtuals: true,
+        transform: function (doc, ret) {
+            ret.id = ret._id;
+            delete ret._id;
+            delete ret.__v;
+        }
+    }
 });
 
 const Invoice = mongoose.model('Invoice', invoiceSchema);
 
-// Data Migration Function
-async function migrateDataIfNeeded() {
-    try {
-        const menuCount = await MenuItem.countDocuments();
-        if (menuCount === 0) {
-            const menuPath = path.join(DATA_DIR, 'menu.json');
-            try {
-                const menuData = await fs.readFile(menuPath, 'utf-8');
-                const menuItems = JSON.parse(menuData);
-                if (Array.isArray(menuItems) && menuItems.length > 0) {
-                    await MenuItem.insertMany(menuItems);
-                    console.log('📦 Migrated Menu data to MongoDB');
-                }
-            } catch (e) {
-                console.log('ℹ️ No local menu.json found or empty, skipping migration');
-            }
-        }
-
-        const invoiceCount = await Invoice.countDocuments();
-        if (invoiceCount === 0) {
-            const invoicesPath = path.join(DATA_DIR, 'invoices.json');
-            try {
-                const invoicesData = await fs.readFile(invoicesPath, 'utf-8');
-                const invoices = JSON.parse(invoicesData);
-                if (Array.isArray(invoices) && invoices.length > 0) {
-                    await Invoice.insertMany(invoices);
-                    console.log('📦 Migrated Invoices data to MongoDB');
-                }
-            } catch (e) {
-                console.log('ℹ️ No local invoices.json found or empty, skipping migration');
-            }
-        }
-    } catch (error) {
-        console.error('Migration error:', error);
-    }
-}
-
 // Routes
 
-// Get menu
+// --- Menu Routes ---
+
+// Get all menu items
 app.get('/api/menu', async (req, res) => {
     try {
-        const menu = await MenuItem.find({});
+        const menu = await MenuItem.find({}).sort({ createdAt: -1 });
         res.json(menu);
     } catch (error) {
         console.error('Error fetching menu:', error);
@@ -104,31 +85,65 @@ app.get('/api/menu', async (req, res) => {
     }
 });
 
-// Save menu
+// Create a new menu item
 app.post('/api/menu', async (req, res) => {
     try {
-        const menu = req.body;
-        if (!Array.isArray(menu)) {
-            return res.status(400).json({ error: 'Menu must be an array' });
+        const { name, price, category } = req.body;
+        if (!name || !price || !category) {
+            return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        // Replace all menu items
-        await MenuItem.deleteMany({});
-        if (menu.length > 0) {
-            await MenuItem.insertMany(menu);
-        }
-
-        res.json({ success: true, message: 'Menu saved successfully' });
+        const newItem = new MenuItem({ name, price, category });
+        await newItem.save();
+        res.status(201).json(newItem);
     } catch (error) {
-        console.error('Error saving menu:', error);
-        res.status(500).json({ error: 'Failed to save menu data' });
+        console.error('Error creating menu item:', error);
+        res.status(500).json({ error: 'Failed to create menu item' });
     }
 });
 
-// Get invoices
+// Update a menu item
+app.put('/api/menu/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updates = req.body;
+
+        const updatedItem = await MenuItem.findByIdAndUpdate(id, updates, { new: true });
+
+        if (!updatedItem) {
+            return res.status(404).json({ error: 'Menu item not found' });
+        }
+
+        res.json(updatedItem);
+    } catch (error) {
+        console.error('Error updating menu item:', error);
+        res.status(500).json({ error: 'Failed to update menu item' });
+    }
+});
+
+// Delete a menu item
+app.delete('/api/menu/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deletedItem = await MenuItem.findByIdAndDelete(id);
+
+        if (!deletedItem) {
+            return res.status(404).json({ error: 'Menu item not found' });
+        }
+
+        res.json({ message: 'Menu item deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting menu item:', error);
+        res.status(500).json({ error: 'Failed to delete menu item' });
+    }
+});
+
+// --- Invoice Routes ---
+
+// Get all invoices
 app.get('/api/invoices', async (req, res) => {
     try {
-        const invoices = await Invoice.find({});
+        const invoices = await Invoice.find({}).sort({ createdAt: -1 });
         res.json(invoices);
     } catch (error) {
         console.error('Error fetching invoices:', error);
@@ -136,26 +151,42 @@ app.get('/api/invoices', async (req, res) => {
     }
 });
 
-// Save invoices
+// Create a new invoice
 app.post('/api/invoices', async (req, res) => {
     try {
-        const invoices = req.body;
-        if (!Array.isArray(invoices)) {
-            return res.status(400).json({ error: 'Invoices must be an array' });
+        const invoiceData = req.body;
+
+        // Basic validation
+        if (!invoiceData.items || !Array.isArray(invoiceData.items) || invoiceData.items.length === 0) {
+            return res.status(400).json({ error: 'Invoice must have items' });
         }
 
-        // Replace all invoices
-        await Invoice.deleteMany({});
-        if (invoices.length > 0) {
-            await Invoice.insertMany(invoices);
-        }
-
-        res.json({ success: true, message: 'Invoices saved successfully' });
+        const newInvoice = new Invoice(invoiceData);
+        await newInvoice.save();
+        res.status(201).json(newInvoice);
     } catch (error) {
-        console.error('Error saving invoices:', error);
-        res.status(500).json({ error: 'Failed to save invoices data' });
+        console.error('Error creating invoice:', error);
+        res.status(500).json({ error: 'Failed to create invoice' });
     }
 });
+
+// Delete an invoice
+app.delete('/api/invoices/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deletedInvoice = await Invoice.findByIdAndDelete(id);
+
+        if (!deletedInvoice) {
+            return res.status(404).json({ error: 'Invoice not found' });
+        }
+
+        res.json({ message: 'Invoice deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting invoice:', error);
+        res.status(500).json({ error: 'Failed to delete invoice' });
+    }
+});
+
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -172,7 +203,6 @@ app.get('*', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
-    await migrateDataIfNeeded();
 });

@@ -30,10 +30,23 @@ export async function fetchMenu(): Promise<MenuItem[]> {
     return fetchAPI<MenuItem[]>('/menu');
 }
 
-export async function saveMenu(menu: MenuItem[]): Promise<void> {
-    await fetchAPI('/menu', {
+export async function createMenuItem(item: Omit<MenuItem, 'id'>): Promise<MenuItem> {
+    return fetchAPI<MenuItem>('/menu', {
         method: 'POST',
-        body: JSON.stringify(menu),
+        body: JSON.stringify(item),
+    });
+}
+
+export async function updateMenuItem(id: string, item: Partial<MenuItem>): Promise<MenuItem> {
+    return fetchAPI<MenuItem>(`/menu/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(item),
+    });
+}
+
+export async function deleteMenuItem(id: string): Promise<void> {
+    await fetchAPI(`/menu/${id}`, {
+        method: 'DELETE',
     });
 }
 
@@ -42,10 +55,26 @@ export async function fetchInvoices(): Promise<Invoice[]> {
     return fetchAPI<Invoice[]>('/invoices');
 }
 
-export async function saveInvoices(invoices: Invoice[]): Promise<void> {
-    await fetchAPI('/invoices', {
+export async function createInvoice(invoice: Omit<Invoice, 'id'>): Promise<Invoice> {
+    // Transform items to match backend expectation if necessary
+    // Backend expects: { menuItem: <id>, name, price, quantity, ... }
+    const payload = {
+        ...invoice,
+        items: invoice.items.map(item => ({
+            ...item,
+            menuItem: item.id // Pass the item ID as the reference
+        }))
+    };
+
+    return fetchAPI<Invoice>('/invoices', {
         method: 'POST',
-        body: JSON.stringify(invoices),
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function deleteInvoice(id: string): Promise<void> {
+    await fetchAPI(`/invoices/${id}`, {
+        method: 'DELETE',
     });
 }
 
