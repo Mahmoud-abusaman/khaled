@@ -1,66 +1,106 @@
 import express from 'express';
 import cors from 'cors';
-import fs from 'fs/promises';
+import mongoose from 'mongoose';
+import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs/promises';
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const DATA_DIR = path.join(__dirname, 'data');
-const MENU_FILE = path.join(DATA_DIR, 'menu.json');
-const INVOICES_FILE = path.join(DATA_DIR, 'invoices.json');
 const DIST_DIR = path.join(__dirname, 'dist');
+const DATA_DIR = path.join(__dirname, 'data');
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-// Serve static files from dist folder in production
 app.use(express.static(DIST_DIR));
 
-// Ensure data directory exists
-async function ensureDataDir() {
-    try {
-        await fs.access(DATA_DIR);
-    } catch {
-        await fs.mkdir(DATA_DIR, { recursive: true });
-        console.log('📁 Created data directory');
-    }
-}
+// MongoDB Connection
+mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('✅ Connected to MongoDB'))
+    .catch(err => console.error('❌ MongoDB connection error:', err));
 
-// Read JSON file with error handling
-async function readJSONFile(filePath, defaultValue = []) {
+// Schemas
+const menuSchema = new mongoose.Schema({
+    id: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    price: { type: Number, required: true },
+    category: { type: String, required: true }
+});
+
+const MenuItem = mongoose.model('MenuItem', menuSchema);
+
+const invoiceSchema = new mongoose.Schema({
+    id: { type: String, required: true, unique: true },
+    customerName: String,
+    date: { type: String, required: true },
+    items: [{
+        id: String,
+        name: String,
+        price: Number,
+        category: String,
+        quantity: Number,
+        customPrice: Number
+    }],
+    paymentMethod: { type: String, required: true },
+    total: { type: Number, required: true }
+});
+
+const Invoice = mongoose.model('Invoice', invoiceSchema);
+
+// Data Migration Function
+async function migrateDataIfNeeded() {
     try {
-        const data = await fs.readFile(filePath, 'utf-8');
-        return JSON.parse(data);
-    } catch (error) {
-        if (error.code === 'ENOENT') {
-            // File doesn't exist, create it with default value
-            await writeJSONFile(filePath, defaultValue);
-            return defaultValue;
+        const menuCount = await MenuItem.countDocuments();
+        if (menuCount === 0) {
+            const menuPath = path.join(DATA_DIR, 'menu.json');
+            try {
+                const menuData = await fs.readFile(menuPath, 'utf-8');
+                const menuItems = JSON.parse(menuData);
+                if (Array.isArray(menuItems) && menuItems.length > 0) {
+                    await MenuItem.insertMany(menuItems);
+                    console.log('📦 Migrated Menu data to MongoDB');
+                }
+            } catch (e) {
+                console.log('ℹ️ No local menu.json found or empty, skipping migration');
+            }
         }
-        throw error;
+
+        const invoiceCount = await Invoice.countDocuments();
+        if (invoiceCount === 0) {
+            const invoicesPath = path.join(DATA_DIR, 'invoices.json');
+            try {
+                const invoicesData = await fs.readFile(invoicesPath, 'utf-8');
+                const invoices = JSON.parse(invoicesData);
+                if (Array.isArray(invoices) && invoices.length > 0) {
+                    await Invoice.insertMany(invoices);
+                    console.log('📦 Migrated Invoices data to MongoDB');
+                }
+            } catch (e) {
+                console.log('ℹ️ No local invoices.json found or empty, skipping migration');
+            }
+        }
+    } catch (error) {
+        console.error('Migration error:', error);
     }
 }
 
-// Write JSON file
-async function writeJSONFile(filePath, data) {
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
-}
-
-// API Routes
+// Routes
 
 // Get menu
 app.get('/api/menu', async (req, res) => {
     try {
-        const menu = await readJSONFile(MENU_FILE, []);
+        const menu = await MenuItem.find({});
         res.json(menu);
     } catch (error) {
-        console.error('Error reading menu:', error);
-        res.status(500).json({ error: 'Failed to read menu data' });
+        console.error('Error fetching menu:', error);
+        res.status(500).json({ error: 'Failed to fetch menu' });
     }
 });
 
@@ -71,7 +111,13 @@ app.post('/api/menu', async (req, res) => {
         if (!Array.isArray(menu)) {
             return res.status(400).json({ error: 'Menu must be an array' });
         }
-        await writeJSONFile(MENU_FILE, menu);
+
+        // Replace all menu items
+        await MenuItem.deleteMany({});
+        if (menu.length > 0) {
+            await MenuItem.insertMany(menu);
+        }
+
         res.json({ success: true, message: 'Menu saved successfully' });
     } catch (error) {
         console.error('Error saving menu:', error);
@@ -82,11 +128,11 @@ app.post('/api/menu', async (req, res) => {
 // Get invoices
 app.get('/api/invoices', async (req, res) => {
     try {
-        const invoices = await readJSONFile(INVOICES_FILE, []);
+        const invoices = await Invoice.find({});
         res.json(invoices);
     } catch (error) {
-        console.error('Error reading invoices:', error);
-        res.status(500).json({ error: 'Failed to read invoices data' });
+        console.error('Error fetching invoices:', error);
+        res.status(500).json({ error: 'Failed to fetch invoices' });
     }
 });
 
@@ -97,7 +143,13 @@ app.post('/api/invoices', async (req, res) => {
         if (!Array.isArray(invoices)) {
             return res.status(400).json({ error: 'Invoices must be an array' });
         }
-        await writeJSONFile(INVOICES_FILE, invoices);
+
+        // Replace all invoices
+        await Invoice.deleteMany({});
+        if (invoices.length > 0) {
+            await Invoice.insertMany(invoices);
+        }
+
         res.json({ success: true, message: 'Invoices saved successfully' });
     } catch (error) {
         console.error('Error saving invoices:', error);
@@ -107,21 +159,20 @@ app.post('/api/invoices', async (req, res) => {
 
 // Health check
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', message: 'Server is running' });
+    res.json({
+        status: 'ok',
+        message: 'Server is running',
+        db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    });
 });
 
-// Serve index.html for all other routes (for client-side routing)
+// Client-side routing
 app.get('*', (req, res) => {
     res.sendFile(path.join(DIST_DIR, 'index.html'));
 });
 
 // Start server
-async function startServer() {
-    await ensureDataDir();
-    app.listen(PORT, () => {
-        console.log(`🚀 Server running on http://localhost:${PORT}`);
-        console.log(`📊 Data directory: ${DATA_DIR}`);
-    });
-}
-
-startServer().catch(console.error);
+app.listen(PORT, async () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    await migrateDataIfNeeded();
+});
